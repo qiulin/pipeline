@@ -1,9 +1,8 @@
-package com.commodityvectors.pipeline.stream
+package com.commodityvectors.pipeline.stream.operator
 
 import scala.concurrent.Future
 
 import akka.Done
-
 import com.commodityvectors.pipeline.DataOperator
 
 case class OperatorTester[In, Out](op: DataOperator[In, Out]) {
