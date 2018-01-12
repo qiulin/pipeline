@@ -1,10 +1,10 @@
 package com.commodityvectors.pipeline.predefined
 
-import scala.concurrent.{Future, Promise}
+import scala.concurrent.Future
 
 import java.util.concurrent.ConcurrentLinkedQueue
 
-import akka.{Done, NotUsed}
+import akka.NotUsed
 import akka.actor.ActorSystem
 import akka.stream.ActorMaterializer
 import akka.stream.scaladsl.{Keep, Sink, SinkQueueWithCancel, Source}
@@ -27,7 +27,6 @@ abstract class StreamReader[A](implicit system: ActorSystem)
   private var state: Snapshot = _
   private var fetchQueue: SinkQueueWithCancel[(A, Snapshot)] = _
   private val pullQueue = new ConcurrentLinkedQueue[(A, Snapshot)]()
-  private val initialized: Promise[Done] = Promise()
 
   /**
     * Source of data.
@@ -40,14 +39,13 @@ abstract class StreamReader[A](implicit system: ActorSystem)
 
   protected implicit def materializer: ActorMaterializer = ActorMaterializer()
 
-  override def init(): Unit = {
+  override def init(): Future[Unit] = {
     Future {
       // run() may deadlock on AffinityPool if executed on the same thread
       fetchQueue = source(Option(state))
         .toMat(Sink.queue())(Keep.right)
         .run()
-      initialized.trySuccess(Done)
-    }(ExecutionContexts.Implicits.blockingIO)
+    }(ExecutionContexts.blockingIO)
   }
 
   /**
@@ -57,14 +55,12 @@ abstract class StreamReader[A](implicit system: ActorSystem)
     */
   override def fetch(): Future[Int] = {
     import ExecutionContexts.Implicits.sameThreadExecutionContext
-    initialized.future.flatMap { _ =>
-      fetchQueue.pull().map {
-        case Some(data) =>
-          pullQueue.add(data)
-          1
-        case _ =>
-          0
-      }
+    fetchQueue.pull().map {
+      case Some(data) =>
+        pullQueue.add(data)
+        1
+      case _ =>
+        0
     }
   }
 

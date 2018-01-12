@@ -14,6 +14,8 @@ import com.commodityvectors.pipeline.util.FutureTry
 
 private abstract class MessageComponent(component: DataComponent, id: String)(
     stateManager: MessageComponentStateManager) {
+  import scala.concurrent.ExecutionContext.Implicits.global
+
   private lazy val initializedPromise: Promise[Done] = Promise[Done]
   private var _isComponentInitialized = false
 
@@ -36,10 +38,13 @@ private abstract class MessageComponent(component: DataComponent, id: String)(
     */
   protected def restorableComponent: Any = component
 
-  private def tryInitializeComponent(): Unit = {
+  private def tryInitializeComponent(): Future[Unit] = {
     if (!_isComponentInitialized) {
-      component.init()
-      _isComponentInitialized = true
+      component.init().map { _ =>
+        _isComponentInitialized = true
+      }
+    } else {
+      Future.successful()
     }
   }
 
@@ -55,13 +60,11 @@ private abstract class MessageComponent(component: DataComponent, id: String)(
       onRestoreComponent(cmd)
   }
 
-  private def onInitializeComponent(cmd: Init): Future[Done] = sync {
-    tryInitializeComponent()
-    Done
+  private def onInitializeComponent(cmd: Init): Future[Done] = {
+    tryInitializeComponent().map(_ => Done)
   }
 
   private def onSnapshotComponent(cmd: CreateSnapshot): Future[Done] = {
-    import scala.concurrent.ExecutionContext.Implicits.global
 
     restorableComponent match {
       case cp: Snapshottable =>
@@ -78,7 +81,6 @@ private abstract class MessageComponent(component: DataComponent, id: String)(
   }
 
   private def onRestoreComponent(cmd: RestoreSnapshot): Future[Done] = {
-    import scala.concurrent.ExecutionContext.Implicits.global
 
     val restore = restorableComponent match {
       case cp: Snapshottable =>
@@ -93,9 +95,8 @@ private abstract class MessageComponent(component: DataComponent, id: String)(
         Future.successful(Done)
     }
 
-    restore.map { _ =>
-      tryInitializeComponent()
-      Done
+    restore.flatMap { _ =>
+      tryInitializeComponent().map(_ => Done)
     }
   }
 }

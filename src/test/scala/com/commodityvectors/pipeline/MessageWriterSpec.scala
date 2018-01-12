@@ -53,7 +53,7 @@ class MessageWriterSpec extends BaseComponentSpec {
       (stateManager.loadComponentState[helpers.TestState] _)
         .expects(writer.componentId, snapshotId)
         .returns(Future.successful(state))
-      (dataWriter.init _).expects()
+      (dataWriter.init _).expects().returns(Future.successful())
       (dataWriter.restoreState _).expects(state).returns(Future.successful(()))
 
       writer.writeMessage(restoreMessage).futureValue
