@@ -44,14 +44,21 @@ private class MessageReader[A](reader: DataReader[A], id: String)(
     * but keep other future cached for next call.
     */
   private def nextMessageNotification(): Future[MessageNotification] = {
-
-    if (!userMessageFetching && isComponentInitialized && !stopped) {
+    if (notificationsQueue.size < MaxPrefetch && !userMessageFetching && isComponentInitialized && !stopped) {
       userMessageFetching = true
       reader
         .fetch()
         .map { n =>
           userMessageFetching = false
-          notificationsQueue.enqueue(UserMessageNotification(n))
+          if (n > 0) {
+            // enqueue notification for each available user message
+            for (_ <- 1 to n) {
+              notificationsQueue.enqueue(UserMessageNotification)
+            }
+          } else {
+            // this means EOF
+            notificationsQueue.enqueue(EofNotification)
+          }
         }
         .recover {
           case e =>
@@ -68,26 +75,22 @@ private class MessageReader[A](reader: DataReader[A], id: String)(
       Future.successful(None)
     } else {
       nextMessageNotification().map {
-        case UserMessageNotification(n) =>
-          if (n > 0) {
-            reader.pull() match {
-              case Some(a) =>
-                Some(Message.user(a))
-              case _ =>
-                // this indicates a bug in DataReader implementation
-                throw new Exception(
-                  s"$reader reported a message, but failed to pull one.")
-            }
-          } else {
-            stopped = true
-            None
-          }
-        case InjectedMessageNotification(msg: Message[A]) =>
-          Some(msg)
-
         case ErrorNotification(t) =>
           stopped = true
           throw t
+        case EofNotification =>
+          stopped = true
+          None
+        case InjectedMessageNotification(msg: Message[A]) =>
+          Some(msg)
+        case UserMessageNotification =>
+          reader.pull() match {
+            case Some(data) =>
+              Some(Message.user(data))
+            case _ =>
+              throw new Exception(
+                s"Contract violation by $reader: pull didn't return any data, but it should have according to fetch result.")
+          }
       }
     }
   }
@@ -106,11 +109,15 @@ private class MessageReader[A](reader: DataReader[A], id: String)(
 
 object MessageReader {
 
+  private val MaxPrefetch = 4
+
   private sealed trait MessageNotification
 
   private case class ErrorNotification(t: Throwable) extends MessageNotification
 
-  private case class UserMessageNotification(n: Int) extends MessageNotification
+  private case object EofNotification extends MessageNotification
+
+  private case object UserMessageNotification extends MessageNotification
 
   private case class InjectedMessageNotification[A](msg: Message[A])
       extends MessageNotification
