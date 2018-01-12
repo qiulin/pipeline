@@ -1,10 +1,10 @@
 package com.commodityvectors.pipeline.predefined
 
-import scala.concurrent.Future
+import scala.concurrent.{Future, Promise}
 
-import java.util
+import java.util.concurrent.ConcurrentLinkedQueue
 
-import akka.NotUsed
+import akka.{Done, NotUsed}
 import akka.actor.ActorSystem
 import akka.stream.ActorMaterializer
 import akka.stream.scaladsl.{Keep, Sink, SinkQueueWithCancel, Source}
@@ -26,7 +26,8 @@ abstract class StreamReader[A](implicit system: ActorSystem)
 
   private var state: Snapshot = _
   private var fetchQueue: SinkQueueWithCancel[(A, Snapshot)] = _
-  private val pullQueue = new util.ArrayDeque[(A, Snapshot)]()
+  private val pullQueue = new ConcurrentLinkedQueue[(A, Snapshot)]()
+  private val initialized: Promise[Done] = Promise()
 
   /**
     * Source of data.
@@ -37,11 +38,16 @@ abstract class StreamReader[A](implicit system: ActorSystem)
     */
   protected def source(state: Option[Snapshot]): Source[(A, Snapshot), NotUsed]
 
+  protected implicit def materializer: ActorMaterializer = ActorMaterializer()
+
   override def init(): Unit = {
-    implicit val materializer = ActorMaterializer()
-    fetchQueue = source(Option(state)).async
-      .toMat(Sink.queue())(Keep.right)
-      .run()
+    Future {
+      // run() may deadlock on AffinityPool if executed on the same thread
+      fetchQueue = source(Option(state))
+        .toMat(Sink.queue())(Keep.right)
+        .run()
+      initialized.trySuccess(Done)
+    }(ExecutionContexts.Implicits.blockingIO)
   }
 
   /**
@@ -51,12 +57,14 @@ abstract class StreamReader[A](implicit system: ActorSystem)
     */
   override def fetch(): Future[Int] = {
     import ExecutionContexts.Implicits.sameThreadExecutionContext
-    fetchQueue.pull().map {
-      case Some(data) =>
-        pullQueue.add(data)
-        1
-      case _ =>
-        0
+    initialized.future.flatMap { _ =>
+      fetchQueue.pull().map {
+        case Some(data) =>
+          pullQueue.add(data)
+          1
+        case _ =>
+          0
+      }
     }
   }
 
