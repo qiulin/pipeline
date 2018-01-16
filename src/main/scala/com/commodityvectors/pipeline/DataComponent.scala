@@ -16,8 +16,9 @@ trait DataComponent {
 
   /**
     * Returns sync code block result as a Future.
-    * For better performance
-    * and avoiding unnecessary import of execution context.
+    *
+    * Use carefully!
+    * Heavy CPU tasks can undermine internal Akka Stream dispatcher performance.
     */
   protected def sync[T](code: => T) = Future.fromTry(Try(code))
 }
