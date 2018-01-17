@@ -109,11 +109,14 @@ class CoordinatorSpec extends BaseComponentSpec {
 
         val reader = stub[DataReader[Int]]
         (reader.fetch _).when().returns(Future.successful(0))
+        (reader.init _).when().returns(Future.successful())
 
         val transformer = stub[DataTransformer[Int, Int]]
+        (transformer.init _).when().returns(Future.successful())
         (transformer.transform _).when(*).returns(Future.successful(Nil))
 
         val writer = stub[DataWriter[Int]]
+        (writer.init _).when().returns(Future.successful())
         (writer.write _).when(*).returns(Future.successful(Done))
 
         val coordinatorName = randomName("coordinator_")
@@ -149,15 +152,18 @@ class CoordinatorSpec extends BaseComponentSpec {
         val reader = stub[CheckpointedDataReader[Int, helpers.TestState]]
         (reader.fetch _).when().returns(Future.successful(0))
         (reader.restoreState _).when(*).returns(Future.successful(()))
+        (reader.init _).when().returns(Future.successful())
 
         val transformer =
           stub[CheckpointedDataTransformer[Int, Int, helpers.TestState]]
+        (transformer.init _).when().returns(Future.successful())
         (transformer.transform _).when(*).returns(Future.successful(Nil))
         (transformer.restoreState _)
           .when(*)
           .returns(Future.successful(()))
 
         val writer = stub[CheckpointedDataWriter[Int, helpers.TestState]]
+        (writer.init _).when().returns(Future.successful())
         (writer.write _).when(*).returns(Future.successful(Done))
         (writer.restoreState _).when(*).returns(Future.successful(()))
 

@@ -31,7 +31,7 @@ class DataWriterSinkExtension(val src: Sink.type) extends AnyVal {
       messageWriter,
       MessageComponentActor.props(messageWriter, coordinator.actorPath)).start()
 
-    Flow[Message[A]]
+    Flow[Message[A]].async
       .mapAsync(1)(m => messageWriter.writeMessage(m))
       .toMat(Sink.ignore)(Keep.right)
       .mapMaterializedValue { done =>

@@ -29,7 +29,7 @@ class DataTransformerFlowExtension[A, B, Mat](
       MessageComponentActor.props(messageTransformer, coordinator.actorPath))
       .start()
 
-    flow
+    flow.async
       .mapAsync(1)(m => messageTransformer.transformMessage(m))
       .async
       .mapConcat(identity)

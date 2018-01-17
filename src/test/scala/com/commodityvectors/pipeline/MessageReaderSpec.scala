@@ -72,7 +72,7 @@ class MessageReaderSpec extends BaseComponentSpec {
         reader.initialize(UUID.randomUUID())
         reader.injectMessage(Message.system(Init()))
 
-        (dataReader.init _).expects()
+        (dataReader.init _).expects().returns(Future.successful())
         (dataReader.fetch _).expects().returns(Future.successful(1))
         (dataReader.pull _).expects().returns(Some(10))
 
@@ -94,7 +94,7 @@ class MessageReaderSpec extends BaseComponentSpec {
         reader.initialize(UUID.randomUUID())
         reader.injectMessage(Message.system(Init()))
 
-        (dataReader.init _).expects()
+        (dataReader.init _).expects().returns(Future.successful())
 
         (dataReader.fetch _).expects().returns(Future.successful(1))
         (dataReader.pull _).expects().returns(Some(10))
@@ -121,7 +121,7 @@ class MessageReaderSpec extends BaseComponentSpec {
         reader.initialize(UUID.randomUUID())
         reader.injectMessage(Message.system(Init()))
 
-        (dataReader.init _).expects()
+        (dataReader.init _).expects().returns(Future.successful())
         (dataReader.fetch _).expects().returns(Future.failed(error))
 
         reader.readMessage().futureValue shouldBe Some(Message.system(Init()))
@@ -143,7 +143,7 @@ class MessageReaderSpec extends BaseComponentSpec {
         reader.injectMessage(Message.system(Init()))
 
         val userMessagePromise = Promise[Int]()
-        (dataReader.init _).expects()
+        (dataReader.init _).expects().returns(Future.successful())
         (dataReader.fetch _).expects().returns(userMessagePromise.future)
 
         reader.readMessage().futureValue shouldBe Some(Message.system(Init()))
@@ -221,7 +221,7 @@ class MessageReaderSpec extends BaseComponentSpec {
         (dataReader.restoreState _)
           .expects(state)
           .returns(Future.successful(()))
-        (dataReader.init _).expects()
+        (dataReader.init _).expects().returns(Future.successful())
 
         reader.readMessage().futureValue shouldBe Some(restoreMessage)
 

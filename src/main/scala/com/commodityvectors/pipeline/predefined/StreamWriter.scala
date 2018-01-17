@@ -6,8 +6,11 @@ import akka.actor.ActorSystem
 import akka.stream.scaladsl.{Flow, Keep, Sink, Source, SourceQueueWithComplete}
 import akka.stream.{ActorMaterializer, OverflowStrategy}
 import akka.{Done, NotUsed}
-import com.commodityvectors.pipeline.util.AutoCompletePromiseList
 import com.commodityvectors.pipeline.util.ExecutionContexts.Implicits.sameThreadExecutionContext
+import com.commodityvectors.pipeline.util.{
+  AutoCompletePromiseList,
+  ExecutionContexts
+}
 import com.commodityvectors.pipeline.{DataWriter, SnapshotId, Snapshottable}
 import com.typesafe.scalalogging.LazyLogging
 import org.joda.time.DateTime
@@ -32,29 +35,33 @@ abstract class StreamWriter[A](asyncBatchSize: Int = 1000)(
   private val queuePromises: AutoCompletePromiseList[Done] =
     new AutoCompletePromiseList[Done]
 
-  override def init(): Unit = {
-    implicit val materializer = ActorMaterializer()
-    Source
-      .queue[A](asyncBatchSize, OverflowStrategy.backpressure)
-      .async
-      .via(flow(Option(state)))
-      .async
-      .map { s =>
-        state = s
-      }
-      .toMat(Sink.ignore)(Keep.both)
-      .run() match {
-      case (q, f) =>
-        queue = q
-        f.onComplete { result =>
-          logger.error(
-            s"${this.getClass.getSimpleName} substream stopped with result: " + result)
-          queuePromises.complete(result)
+  protected implicit def materializer: ActorMaterializer = ActorMaterializer()
+
+  override def init(): Future[Unit] = {
+    Future {
+      // run() may deadlock on AffinityPool if executed on the same thread
+      Source
+        .queue[A](asyncBatchSize, OverflowStrategy.backpressure)
+        .via(flow(Option(state)))
+        .map { s =>
+          state = s
         }
-    }
+        .toMat(Sink.ignore)(Keep.both)
+        .run() match {
+        case (q, f) =>
+          queue = q
+          f.onComplete { result =>
+            logger.error(
+              s"${this.getClass.getSimpleName} substream stopped with result: " + result)
+            queuePromises.complete(result)
+          }
+      }
+
+    }(ExecutionContexts.blockingIO)
   }
 
   override def write(elem: A): Future[Done] = {
+    import ExecutionContexts.Implicits.sameThreadExecutionContext
     val queueOffer = queue.offer(elem).map(_ => Done)
 
     val queuePromise = queuePromises.create()

@@ -27,7 +27,7 @@ class DataTransformerSourceExtension[A, Mat](
       messageTransformer,
       MessageComponentActor.props(messageTransformer, coordinator.actorPath))
       .start()
-    source
+    source.async
       .mapAsync(1)(m => messageTransformer.transformMessage(m))
       .async // allow next transform being called before all resulted messages are processed
       .mapConcat(identity)

@@ -2,7 +2,7 @@ package com.commodityvectors.pipeline.predefined
 
 import scala.concurrent.Future
 
-import java.util
+import java.util.concurrent.ConcurrentLinkedQueue
 
 import akka.NotUsed
 import akka.actor.ActorSystem
@@ -26,7 +26,7 @@ abstract class StreamReader[A](implicit system: ActorSystem)
 
   private var state: Snapshot = _
   private var fetchQueue: SinkQueueWithCancel[(A, Snapshot)] = _
-  private val pullQueue = new util.ArrayDeque[(A, Snapshot)]()
+  private val pullQueue = new ConcurrentLinkedQueue[(A, Snapshot)]()
 
   /**
     * Source of data.
@@ -37,11 +37,15 @@ abstract class StreamReader[A](implicit system: ActorSystem)
     */
   protected def source(state: Option[Snapshot]): Source[(A, Snapshot), NotUsed]
 
-  override def init(): Unit = {
-    implicit val materializer = ActorMaterializer()
-    fetchQueue = source(Option(state)).async
-      .toMat(Sink.queue())(Keep.right)
-      .run()
+  protected implicit def materializer: ActorMaterializer = ActorMaterializer()
+
+  override def init(): Future[Unit] = {
+    Future {
+      // run() may deadlock on AffinityPool if executed on the same thread
+      fetchQueue = source(Option(state))
+        .toMat(Sink.queue())(Keep.right)
+        .run()
+    }(ExecutionContexts.blockingIO)
   }
 
   /**
