@@ -1,7 +1,6 @@
 package com.commodityvectors.pipeline.predefined
 
 import scala.concurrent.Future
-
 import akka.actor.ActorSystem
 import akka.stream.scaladsl.{Flow, Keep, Sink, Source, SourceQueueWithComplete}
 import akka.stream.{ActorMaterializer, OverflowStrategy}
@@ -11,7 +10,12 @@ import com.commodityvectors.pipeline.util.{
   AutoCompletePromiseList,
   ExecutionContexts
 }
-import com.commodityvectors.pipeline.{DataWriter, SnapshotId, Snapshottable}
+import com.commodityvectors.pipeline.{
+  DataComponentContext,
+  DataWriter,
+  SnapshotId,
+  Snapshottable
+}
 import com.typesafe.scalalogging.LazyLogging
 import org.joda.time.DateTime
 
@@ -37,7 +41,7 @@ abstract class StreamWriter[A](asyncBatchSize: Int = 1000)(
 
   protected implicit def materializer: ActorMaterializer = ActorMaterializer()
 
-  override def init(): Future[Unit] = {
+  override def init(context: DataComponentContext): Future[Unit] = {
     Future {
       // run() may deadlock on AffinityPool if executed on the same thread
       Source

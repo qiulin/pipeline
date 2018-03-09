@@ -39,7 +39,7 @@ abstract class StreamReader[A](implicit system: ActorSystem)
 
   protected implicit def materializer: ActorMaterializer = ActorMaterializer()
 
-  override def init(): Future[Unit] = {
+  override def init(context: DataComponentContext): Future[Unit] = {
     Future {
       // run() may deadlock on AffinityPool if executed on the same thread
       fetchQueue = source(Option(state))

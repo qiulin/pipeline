@@ -31,7 +31,7 @@ class MessageTransformerSpec extends BaseComponentSpec {
                        SerializedActorRef("12345")))
       val restoreMsg = Message.system(RestoreSnapshot(SnapshotId("snapshot1")))
 
-      (dataTransformer.init _).expects().returns(Future.successful())
+      (dataTransformer.init _).expects(*).returns(Future.successful())
       transformer.transformMessage(initMsg).futureValue shouldBe List(initMsg)
       transformer.transformMessage(snapshotMsg).futureValue shouldBe List(
         snapshotMsg)
@@ -109,7 +109,7 @@ class MessageTransformerSpec extends BaseComponentSpec {
       (stateManager.loadComponentState[helpers.TestState] _)
         .expects(transformer.componentId, snapshotId)
         .returns(Future.successful(state))
-      (dataTransformer.init _).expects().returns(Future.successful())
+      (dataTransformer.init _).expects(*).returns(Future.successful())
       (dataTransformer.restoreState _)
         .expects(state)
         .returns(Future.successful(()))

@@ -40,7 +40,8 @@ private abstract class MessageComponent(component: DataComponent, id: String)(
 
   private def tryInitializeComponent(): Future[Unit] = {
     if (!_isComponentInitialized) {
-      component.init().map { _ =>
+      val context = DataComponentContext.DefaultDataComponentContext(id)
+      component.init(context).map { _ =>
         _isComponentInitialized = true
       }
     } else {
