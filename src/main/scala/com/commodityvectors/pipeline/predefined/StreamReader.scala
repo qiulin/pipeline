@@ -1,17 +1,18 @@
 package com.commodityvectors.pipeline.predefined
 
-import scala.concurrent.Future
-
 import java.util.concurrent.ConcurrentLinkedQueue
+
+import scala.concurrent.Future
 
 import akka.NotUsed
 import akka.actor.ActorSystem
 import akka.stream.ActorMaterializer
 import akka.stream.scaladsl.{Keep, Sink, SinkQueueWithCancel, Source}
-import com.commodityvectors.pipeline._
-import com.commodityvectors.pipeline.util.ExecutionContexts
 import com.typesafe.scalalogging.LazyLogging
 import org.joda.time.DateTime
+
+import com.commodityvectors.pipeline._
+import com.commodityvectors.pipeline.util.ExecutionContexts
 
 /**
   * Base Akka stream based data reader
@@ -29,20 +30,33 @@ abstract class StreamReader[A](implicit system: ActorSystem)
   private val pullQueue = new ConcurrentLinkedQueue[(A, Snapshot)]()
 
   /**
+    * Initial state
+    *
+    * @param context
+    * @return
+    */
+  protected def initialState(context: DataComponentContext): Snapshot
+
+  /**
     * Source of data.
     * Each data record should be accompanied with corresponding immutable state.
     *
     * @param state initial state
     * @return
     */
-  protected def source(state: Option[Snapshot]): Source[(A, Snapshot), NotUsed]
+  protected def source(state: Snapshot): Source[(A, Snapshot), NotUsed]
 
   protected implicit def materializer: ActorMaterializer = ActorMaterializer()
 
   override def init(context: DataComponentContext): Future[Unit] = {
     Future {
+
+      if (state == null) {
+        state = initialState(context)
+      }
+
       // run() may deadlock on AffinityPool if executed on the same thread
-      fetchQueue = source(Option(state))
+      fetchQueue = source(state)
         .toMat(Sink.queue())(Keep.right)
         .run()
     }(ExecutionContexts.blockingIO)

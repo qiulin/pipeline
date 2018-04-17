@@ -31,7 +31,15 @@ abstract class StreamWriter[A](asyncBatchSize: Int = 1000)(
     with Snapshottable
     with LazyLogging {
 
-  protected def flow(state: Option[Snapshot]): Flow[A, Snapshot, NotUsed]
+  /**
+    * Initial state
+    *
+    * @param context
+    * @return
+    */
+  protected def initialState(context: DataComponentContext): Snapshot
+
+  protected def flow(state: Snapshot): Flow[A, Snapshot, NotUsed]
 
   @volatile
   private var state: Snapshot = _
@@ -43,10 +51,15 @@ abstract class StreamWriter[A](asyncBatchSize: Int = 1000)(
 
   override def init(context: DataComponentContext): Future[Unit] = {
     Future {
+
+      if (state == null) {
+        state = initialState(context)
+      }
+
       // run() may deadlock on AffinityPool if executed on the same thread
       Source
         .queue[A](asyncBatchSize, OverflowStrategy.backpressure)
-        .via(flow(Option(state)))
+        .via(flow(state))
         .map { s =>
           state = s
         }
