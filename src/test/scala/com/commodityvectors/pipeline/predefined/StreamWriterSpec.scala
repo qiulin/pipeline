@@ -1,8 +1,10 @@
 package com.commodityvectors.pipeline.predefined
 
+import scala.concurrent.duration._
+
 import akka.NotUsed
 import akka.actor.ActorSystem
-import akka.stream.scaladsl.{Flow, Source}
+import akka.stream.scaladsl.Flow
 import org.joda.time.DateTime
 import org.scalatest.{AsyncWordSpec, BeforeAndAfterAll, Matchers}
 
@@ -21,7 +23,8 @@ class StreamWriterSpec
     system.terminate()
   }
 
-  class IntWriter extends StreamWriter[Int]() {
+  class IntWriter(saveDelay: FiniteDuration = 1.milli)
+      extends StreamWriter[Int]() {
 
     override type Snapshot = Option[Int]
 
@@ -30,7 +33,7 @@ class StreamWriterSpec
 
     override protected def flow(
         state: Option[Int]): Flow[Int, Option[Int], NotUsed] = {
-      Flow[Int].map(i => Some(i + 1))
+      Flow[Int].map(i => Some(i + 1)).delay(saveDelay)
     }
   }
 
@@ -49,5 +52,28 @@ class StreamWriterSpec
         }
       }
     }
+
+    "has pending messages to be saved" should {
+
+      "wait for them to be saved before making snapshot" in {
+        val writer = new IntWriter(1.second)
+        for {
+          _ <- writer.init(DefaultDataComponentContext("123"))
+          _ <- writer.write(1)
+          _ <- writer.write(2)
+          _ <- writer.write(3)
+          snapshot1 <- writer.snapshotState(SnapshotId("snapshot1"),
+                                            DateTime.now)
+          _ <- writer.write(4)
+          _ <- writer.write(5)
+          snapshot2 <- writer.snapshotState(SnapshotId("snapshot1"),
+                                            DateTime.now)
+        } yield {
+          snapshot1 shouldBe Some(4)
+          snapshot2 shouldBe Some(6)
+        }
+      }
+    }
+
   }
 }

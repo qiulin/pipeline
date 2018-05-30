@@ -1,10 +1,14 @@
 package com.commodityvectors.pipeline.predefined
 
 import scala.concurrent.Future
+
 import akka.actor.ActorSystem
 import akka.stream.scaladsl.{Flow, Keep, Sink, Source, SourceQueueWithComplete}
 import akka.stream.{ActorMaterializer, OverflowStrategy}
 import akka.{Done, NotUsed}
+import com.typesafe.scalalogging.LazyLogging
+import org.joda.time.DateTime
+
 import com.commodityvectors.pipeline.util.ExecutionContexts.Implicits.sameThreadExecutionContext
 import com.commodityvectors.pipeline.util.{
   AutoCompletePromiseList,
@@ -16,8 +20,6 @@ import com.commodityvectors.pipeline.{
   SnapshotId,
   Snapshottable
 }
-import com.typesafe.scalalogging.LazyLogging
-import org.joda.time.DateTime
 
 /**
   * Base async data writer
@@ -46,31 +48,33 @@ abstract class StreamWriter[A](asyncBatchSize: Int = 1000)(
   private var queue: SourceQueueWithComplete[A] = _
   private val queuePromises: AutoCompletePromiseList[Done] =
     new AutoCompletePromiseList[Done]
+  private var substreamCompleted: Future[Option[Snapshot]] = _
 
   protected implicit def materializer: ActorMaterializer = ActorMaterializer()
 
   override def init(context: DataComponentContext): Future[Unit] = {
+    if (state == null) {
+      state = initialState(context)
+    }
+
+    startSubstream(state)
+  }
+
+  private def startSubstream(state: Snapshot): Future[Unit] = {
     Future {
-
-      if (state == null) {
-        state = initialState(context)
-      }
-
       // run() may deadlock on AffinityPool if executed on the same thread
       Source
         .queue[A](asyncBatchSize, OverflowStrategy.backpressure)
         .via(flow(state))
-        .map { s =>
-          state = s
-        }
-        .toMat(Sink.ignore)(Keep.both)
+        .toMat(Sink.lastOption)(Keep.both)
         .run() match {
         case (q, f) =>
           queue = q
-          f.onComplete { result =>
+          substreamCompleted = f
+          substreamCompleted.onComplete { result =>
             logger.error(
               s"${this.getClass.getSimpleName} substream stopped with result: " + result)
-            queuePromises.complete(result)
+            queuePromises.complete(result.map(_ => Done))
           }
       }
 
@@ -79,6 +83,7 @@ abstract class StreamWriter[A](asyncBatchSize: Int = 1000)(
 
   override def write(elem: A): Future[Done] = {
     import ExecutionContexts.Implicits.sameThreadExecutionContext
+
     val queueOffer = queue.offer(elem).map(_ => Done)
 
     val queuePromise = queuePromises.create()
@@ -87,8 +92,20 @@ abstract class StreamWriter[A](asyncBatchSize: Int = 1000)(
   }
 
   override def snapshotState(snapshotId: SnapshotId,
-                             snapshotTime: DateTime): Future[Snapshot] = sync {
-    state
+                             snapshotTime: DateTime): Future[Snapshot] = {
+    // terminate substream gracefully
+    queue.complete()
+    // and wait for it to finish processing of pending messages
+    substreamCompleted
+      .flatMap { snapshotOpt =>
+        // update state
+        state = snapshotOpt.getOrElse(state)
+        // restart substream
+        startSubstream(state).map { _ =>
+          // return last state
+          state
+        }
+      }
   }
 
   override def restoreState(state: Snapshot): Future[Unit] = sync {
