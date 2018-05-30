@@ -1,6 +1,7 @@
 package com.commodityvectors.pipeline.predefined
 
 import scala.concurrent.Future
+import scala.util.Failure
 
 import akka.actor.ActorSystem
 import akka.stream.scaladsl.{Flow, Keep, Sink, Source, SourceQueueWithComplete}
@@ -71,10 +72,12 @@ abstract class StreamWriter[A](asyncBatchSize: Int = 1000)(
         case (q, f) =>
           queue = q
           substreamCompleted = f
-          substreamCompleted.onComplete { result =>
-            logger.error(
-              s"${this.getClass.getSimpleName} substream stopped with result: " + result)
-            queuePromises.complete(result.map(_ => Done))
+          substreamCompleted.onComplete {
+            case Failure(err) =>
+              logger.error(
+                s"${this.getClass.getSimpleName} substream stopped with error: " + err)
+              queuePromises.complete(Failure(err))
+            case _ =>
           }
       }
 
