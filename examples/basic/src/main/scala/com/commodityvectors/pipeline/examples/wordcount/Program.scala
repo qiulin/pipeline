@@ -1,23 +1,37 @@
 package com.commodityvectors.pipeline.examples.wordcount
 
+import java.nio.file.Paths
+
+import scala.concurrent.duration._
+
 import akka.actor.ActorSystem
 import akka.stream.ActorMaterializer
 import akka.stream.scaladsl._
+
 import com.commodityvectors.pipeline._
+import com.commodityvectors.pipeline.state.SnapshotDao
 
 object Program extends App {
+
   implicit val system: ActorSystem = ActorSystem()
   implicit val materializer: ActorMaterializer = ActorMaterializer()
-  implicit val dao: InMemorySnapshotDao = new InMemorySnapshotDao
+
+  implicit val dao: SnapshotDao = new FileSnapshotDao(Paths.get("./snapshots"))
   implicit val coordinator: Coordinator = Coordinator(
-    new InMemorySnapshotDao,
+    dao,
     CoordinatorSettings
       .load()
       .withReader("reader")
       .withWriter("writer")
+      .withSnapshotInterval(10.seconds)
   )
 
-  coordinator.start()
+  args match {
+    case Array("-r") =>
+      coordinator.restore()
+    case _ =>
+      coordinator.start()
+  }
 
   import system.dispatcher
 

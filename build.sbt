@@ -28,3 +28,7 @@ pomExtra := (
 )
 
 releaseCrossBuild := true
+
+lazy val pipeline = (project in file("."))
+
+lazy val examples = (project in file("examples"))

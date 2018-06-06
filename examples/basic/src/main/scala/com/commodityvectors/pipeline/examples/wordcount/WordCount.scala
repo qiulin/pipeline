@@ -4,10 +4,16 @@ import scala.collection.immutable
 import scala.concurrent.Future
 
 import akka.actor.ActorSystem
-import com.commodityvectors.pipeline.{DataTransformer, SnapshotId, Snapshottable}
+import com.commodityvectors.pipeline.{
+  DataTransformer,
+  SnapshotId,
+  Snapshottable
+}
 import org.joda.time.DateTime
 
-class WordCount()(implicit system: ActorSystem) extends DataTransformer[String, Int] with Snapshottable {
+class WordCount()(implicit system: ActorSystem)
+    extends DataTransformer[String, Int]
+    with Snapshottable {
 
   import WordCount._
 
@@ -16,11 +22,13 @@ class WordCount()(implicit system: ActorSystem) extends DataTransformer[String, 
   private var counter: Int = 0
 
   override def transform(elem: String): Future[immutable.Seq[Int]] = sync {
+    Thread.sleep(100)
     counter += elem.split(" ").size
     List(counter)
   }
 
-  override def snapshotState(snapshotId: SnapshotId, snapshotTime: DateTime): Future[Snapshot] = sync {
+  override def snapshotState(snapshotId: SnapshotId,
+                             snapshotTime: DateTime): Future[Snapshot] = sync {
     WordCountState(counter)
   }
 
