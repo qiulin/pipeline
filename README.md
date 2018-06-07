@@ -1,4 +1,4 @@
-# Pipeline
+# Pipeline [![Build Status](https://travis-ci.com/commodityvectors/pipeline.svg?branch=master)](https://travis-ci.com/commodityvectors/pipeline)
 Stateful fail-tolerant data streaming library based on Akka Streams.
 
 ## Installation

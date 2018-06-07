@@ -1,3 +1,5 @@
+import sbt.Keys.crossScalaVersions
+
 name := "pipeline-examples"
 
 lazy val examples = (project in file("."))
@@ -10,6 +12,8 @@ lazy val basic = (project in file("./basic"))
   .dependsOn(pipeline)
 
 def commonSettings = Seq(
+  scalaVersion := "2.12.4",
+  crossScalaVersions := Seq("2.11.8", "2.12.4"),
   libraryDependencies ++= Seq(
     "org.apache.commons" % "commons-lang3" % "3.7",
     "commons-io" % "commons-io" % "2.6",
