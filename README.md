@@ -3,6 +3,7 @@ Stateful fail-tolerant data streaming library based on Akka Streams.
 
 ## Installation
 ```sbtshell
+resolvers += Resolver.bintrayRepo("commodityvectors", "commodityvectors-releases")
 libraryDependencies += "com.commodityvectors" %% "pipeline" % "0.5.2"
 ```
 
