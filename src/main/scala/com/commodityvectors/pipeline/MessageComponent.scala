@@ -2,14 +2,16 @@ package com.commodityvectors.pipeline
 
 import scala.concurrent.{Future, Promise}
 import scala.language.postfixOps
-
 import java.util.UUID
 
 import akka.Done
 
 import com.commodityvectors.pipeline.MessageComponentType.MessageComponentType
 import com.commodityvectors.pipeline.protocol._
-import com.commodityvectors.pipeline.state.MessageComponentStateManager
+import com.commodityvectors.pipeline.state.{
+  EmptyState,
+  MessageComponentStateManager
+}
 import com.commodityvectors.pipeline.util.FutureTry
 
 private abstract class MessageComponent(component: DataComponent, id: String)(
@@ -76,6 +78,13 @@ private abstract class MessageComponent(component: DataComponent, id: String)(
                                           cmd.snapshotTime,
                                           cmd.collector)
         }
+      case w: DataWriter[_] =>
+        // writers have to report some state
+        stateManager.saveComponentState(EmptyState,
+                                        componentId,
+                                        cmd.snapshotId,
+                                        cmd.snapshotTime,
+                                        cmd.collector)
       case _ =>
         Future.successful(Done)
     }
