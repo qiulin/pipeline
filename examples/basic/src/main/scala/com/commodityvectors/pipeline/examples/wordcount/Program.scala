@@ -3,13 +3,13 @@ package com.commodityvectors.pipeline.examples.wordcount
 import java.nio.file.Paths
 
 import scala.concurrent.duration._
-
 import akka.actor.ActorSystem
 import akka.stream.ActorMaterializer
 import akka.stream.scaladsl._
-
 import com.commodityvectors.pipeline._
 import com.commodityvectors.pipeline.state.SnapshotDao
+
+import scala.io.StdIn
 
 object Program extends App {
 
@@ -43,4 +43,10 @@ object Program extends App {
       case _ => system.terminate()
     }
 
+  StdIn.readLine(s"""
+      |${Console.RED}#################################
+      |#    Press ENTER to terminate   #
+      |#################################${Console.RESET}
+    """.stripMargin)
+  system.terminate()
 }
